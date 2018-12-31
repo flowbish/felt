@@ -1,0 +1,18 @@
+[package]
+name = "felt"
+version = "0.1.0"
+authors = ["bish"]
+edition = "2018"
+
+[lib]
+name = "felt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[dependencies]
+rusttype = "0.7"
+image = "0.20"
+imageproc = "0.17"
