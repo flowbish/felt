@@ -105,7 +105,7 @@ impl<'a> LetteredBoard<'a> {
                 *border.get_pixel(x - right_side, y % border_height)
             }
             (x, y) if y >= border_width + background_height && y >= x => {
-                *border.get_pixel(y - bottom_side, border_height - (y % border_height) - 1)
+                *border.get_pixel(y - bottom_side, border_height - (x % border_height) - 1)
             }
             (x, y) => *image.get_pixel(x - top_side, y - left_side),
         })
