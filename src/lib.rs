@@ -1,5 +1,5 @@
-use std::path::Path;
 use image::{DynamicImage, Pixel, Rgba, RgbaImage};
+use std::path::Path;
 
 mod color;
 mod lettering;
@@ -83,6 +83,34 @@ impl<'a> LetteredBoard<'a> {
         });
     }
 
+    fn composite_borders(&self, image: RgbaImage, border: &RgbaImage) -> RgbaImage {
+        let border_width = border.width();
+        let border_height = border.height();
+        let background_width = image.width();
+        let background_height = image.height();
+        let left_side = border_width;
+        let top_side = border_width;
+        let right_side = left_side + background_width;
+        let bottom_side = top_side + background_height;
+        let width = right_side + border_width;
+        let height = bottom_side + border_width;
+        RgbaImage::from_fn(width, height, |x, y| match (x, y) {
+            (x, y) if x < left_side && x < y && x < height - y => {
+                *border.get_pixel(x, y % border_height)
+            }
+            (x, y) if y < left_side && y <= x && y < width - x => {
+                *border.get_pixel(y, border_height - (x % border_height) - 1)
+            }
+            (x, y) if x >= right_side && x > y => {
+                *border.get_pixel(x - right_side, y % border_height)
+            }
+            (x, y) if y >= border_width + background_height && y >= x => {
+                *border.get_pixel(y - bottom_side, border_height - (y % border_height) - 1)
+            }
+            (x, y) => *image.get_pixel(x - top_side, y - left_side),
+        })
+    }
+
     pub fn render(&self) -> RgbaImage {
         let mut image = self.board.background.image.clone();
         for (n, line) in self.lettering.lines().enumerate() {
@@ -97,7 +125,11 @@ impl<'a> LetteredBoard<'a> {
                 );
             }
         }
-        image
+        if let Some(ref border) = self.board.border {
+            self.composite_borders(image, &border.image)
+        } else {
+            image
+        }
     }
 }
 
@@ -113,6 +145,17 @@ impl Background {
     }
 }
 
+pub struct Border {
+    image: RgbaImage,
+}
+
+impl Border {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Border, image::ImageError> {
+        let image = image::open(path)?.to_rgba();
+        Ok(Border { image })
+    }
+}
+
 pub struct Font {
     inner: rusttype::Font<'static>,
 }
@@ -121,7 +164,9 @@ impl Font {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Font, std::io::Error> {
         let font_bytes = std::fs::read(path)?;
         let collection = rusttype::FontCollection::from_bytes(font_bytes)?;
-        Ok(Font { inner: collection.into_font()? })
+        Ok(Font {
+            inner: collection.into_font()?,
+        })
     }
 }
 
@@ -129,13 +174,19 @@ impl Font {
 /// fonts required to render the final image.
 pub struct Board {
     background: Background,
+    border: Option<Border>,
     font: Font,
     shade: Font,
 }
 
 impl Board {
-    pub fn new(background: Background, font: Font, shade: Font) -> Self {
-        Board { background, font, shade }
+    pub fn new(background: Background, border: Option<Border>, font: Font, shade: Font) -> Self {
+        Board {
+            background,
+            border,
+            font,
+            shade,
+        }
     }
 
     pub fn write_phrase<'a>(&'a self, phrase: &str) -> LetteredBoard<'a> {
