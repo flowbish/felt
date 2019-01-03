@@ -8,7 +8,7 @@ fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     let phrase = &args[1];
 
-    let background = Background::open("gray.jpg").expect("Unable to open background");
+    let background = Background::open("gray.jpg", 16).expect("Unable to open background");
     let border = Border::open("oak.jpg").expect("Unable to open border");
     let font = Font::open("font.ttf").expect("Unable to open font");
     let shade = Font::open("shade.ttf").expect("Unable to open shade");

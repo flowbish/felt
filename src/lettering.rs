@@ -1,8 +1,7 @@
 use crate::color::Color;
-use crate::ROW_HEIGHT;
 use rusttype::{point, Font, Glyph, GlyphId, PositionedGlyph, Scale};
 
-const SCALE: f32 = ROW_HEIGHT * 5.8;
+const SCALE: f32 = 4.64;
 
 type Point = rusttype::Point<f32>;
 
@@ -43,13 +42,15 @@ impl Cursor {
 }
 
 pub struct Line {
+    scale: Scale,
     glyphs: Vec<(PositionedGlyph<'static>, Color)>,
     cursor: Cursor,
 }
 
 impl Line {
-    fn new() -> Line {
+    fn new(row_height: f32) -> Line {
         Line {
+            scale: Scale::uniform(SCALE * row_height),
             glyphs: Vec::new(),
             cursor: Cursor::new(),
         }
@@ -67,13 +68,13 @@ impl Line {
     fn advance_cursor(&mut self, font: &Font<'static>, id: GlyphId) {
         let width = font
             .glyph(id)
-            .scaled(Scale::uniform(SCALE))
+            .scaled(self.scale)
             .h_metrics()
             .advance_width;
         let padding = self
             .cursor
             .last
-            .map(|last| font.pair_kerning(Scale::uniform(SCALE), last, id))
+            .map(|last| font.pair_kerning(self.scale, last, id))
             .unwrap_or(0.0);
 
         self.cursor = Cursor {
@@ -83,7 +84,7 @@ impl Line {
     }
 
     fn put_glyph(&mut self, position: Point, glyph: Glyph<'static>, color: Color) {
-        let scaled = glyph.scaled(Scale::uniform(SCALE));
+        let scaled = glyph.scaled(self.scale);
         let positioned = scaled.positioned(position);
         self.glyphs.push((positioned, color));
     }
@@ -104,17 +105,19 @@ impl Line {
 
 /// Represents the mutable lettering state.
 pub struct Lettering<'a> {
+    row_height: f32,
     font: &'a Font<'static>,
     shade: &'a Font<'static>,
     lines: Vec<Line>,
 }
 
 impl<'a> Lettering<'a> {
-    pub fn new(font: &'a Font<'static>, shade: &'a Font<'static>) -> Self {
+    pub fn new(row_height: f32, font: &'a Font<'static>, shade: &'a Font<'static>) -> Self {
         Lettering {
+            row_height,
             font,
             shade,
-            lines: vec![Line::new()],
+            lines: vec![Line::new(row_height)],
         }
     }
 
@@ -130,7 +133,7 @@ impl<'a> Lettering<'a> {
     }
 
     fn put_new_line(&mut self) {
-        self.lines.push(Line::new());
+        self.lines.push(Line::new(self.row_height));
     }
 
     pub fn put_character(&mut self, c: char) {

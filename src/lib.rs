@@ -1,4 +1,4 @@
-use image::{DynamicImage, Pixel, Rgba, RgbaImage};
+use image::{Pixel, Rgba, RgbaImage};
 use std::path::Path;
 
 mod color;
@@ -7,8 +7,7 @@ mod lettering;
 use crate::color::Color;
 use crate::lettering::{Letter, Lettering};
 
-const ROW_HEIGHT: f32 = 39.6 / 2.0;
-const HEIGHT: f32 = ROW_HEIGHT * 5.0;
+const ROWS_PER_LINE: u32 = 4;
 
 fn apply2_alpha<F>(bg: &mut Rgba<u8>, fg: &Rgba<u8>, mut f: F)
 where
@@ -34,29 +33,6 @@ fn apply_overlay(bg: &mut Rgba<u8>, fg: &Rgba<u8>) {
     });
 }
 
-fn new_image_tiled(image: &RgbaImage, width: u32, height: u32) -> RgbaImage {
-    let repeat_width = (image.width() * 2) - 1;
-    RgbaImage::from_fn(width, height, |x, y| {
-        let x = x % repeat_width;
-        let x = if x < image.width() {
-            x
-        } else {
-            repeat_width - x
-        };
-
-        let y = y % image.height();
-        image.get_pixel(x, y).clone()
-    })
-}
-
-fn tile_image(image: &DynamicImage, tiles_x: u32, tiles_y: u32) -> RgbaImage {
-    let image = image.to_rgba();
-    let (width, height) = (image.width() / 2, image.height() / 2);
-    let image = image::imageops::resize(&image, width, height, image::FilterType::Lanczos3);
-    let image = new_image_tiled(&image, tiles_x * image.width(), tiles_y * image.height());
-    image
-}
-
 pub struct LetteredBoard<'a> {
     board: &'a Board,
     lettering: Lettering<'a>,
@@ -65,7 +41,8 @@ pub struct LetteredBoard<'a> {
 impl<'a> LetteredBoard<'a> {
     fn render_glyph(
         image: &mut RgbaImage,
-        height: u32,
+        row_height: f32,
+        total_lines: u32,
         row: u32,
         width: f32,
         letter: Letter,
@@ -73,8 +50,8 @@ impl<'a> LetteredBoard<'a> {
     ) {
         letter.draw(|x, y, v| {
             let center_y = image.height() as f32 / 2.0;
-            let height = height as f32 * HEIGHT;
-            let y = ((center_y - (height / 2.0)) + ((row + 1) as f32 * HEIGHT)) as i32 + y;
+            let height = row_height * ROWS_PER_LINE as f32 * total_lines as f32;
+            let y = ((center_y - (height / 2.0)) + ((row + 1) as f32 * row_height * ROWS_PER_LINE as f32)) as i32 + y;
             let x = ((image.width() as f32 / 2.0) - (width / 2.0)) as i32 + x;
             if x >= 0 && y >= 0 && (x as u32) < image.width() && (y as u32) < image.height() {
                 let pixel = image.get_pixel_mut(x as u32, y as u32);
@@ -117,6 +94,7 @@ impl<'a> LetteredBoard<'a> {
             for (glyph, color) in line.letters() {
                 LetteredBoard::render_glyph(
                     &mut image,
+                    self.board.background.row_height,
                     self.lettering.height(),
                     n as u32,
                     line.width(),
@@ -135,13 +113,33 @@ impl<'a> LetteredBoard<'a> {
 
 pub struct Background {
     image: RgbaImage,
+    /// The height of each row.
+    row_height: f32,
+}
+
+fn new_image_tiled(image: &RgbaImage, width: u32, height: u32) -> RgbaImage {
+    let repeat_width = (image.width() * 2) - 1;
+    RgbaImage::from_fn(width, height, |x, y| {
+        let x = x % repeat_width;
+        let x = if x < image.width() {
+            x
+        } else {
+            repeat_width - x
+        };
+
+        let y = y % image.height();
+        image.get_pixel(x, y).clone()
+    })
 }
 
 impl Background {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Background, image::ImageError> {
-        let dyn_image = image::open(path)?;
-        let image = tile_image(&dyn_image, 2, 2);
-        Ok(Background { image })
+    pub fn open<P: AsRef<Path>>(path: P, rows: u32) -> Result<Background, image::ImageError> {
+        let image = image::open(path)?.to_rgba();
+        let (width, height) = (image.width() / 2, image.height() / 2);
+        let row_height = height as f32 / rows as f32;
+        let image = image::imageops::resize(&image, width, height, image::FilterType::Lanczos3);
+        let image = new_image_tiled(&image, 2 * image.width(), 2 * image.height());
+        Ok(Background { image, row_height })
     }
 }
 
@@ -190,7 +188,7 @@ impl Board {
     }
 
     pub fn write_phrase<'a>(&'a self, phrase: &str) -> LetteredBoard<'a> {
-        let mut lettering = Lettering::new(&self.font.inner, &self.shade.inner);
+        let mut lettering = Lettering::new(self.background.row_height, &self.font.inner, &self.shade.inner);
         for letter in phrase.chars() {
             lettering.put_character(letter);
         }

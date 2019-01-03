@@ -2,7 +2,7 @@ use felt::{Font, Background, Board, Border};
 use image::RgbaImage;
 
 fn default_board() -> Board {
-    let background = Background::open("gray.jpg").unwrap();
+    let background = Background::open("gray.jpg", 16).unwrap();
     let border = Border::open("oak.jpg").unwrap();
     let font = Font::open("font.ttf").unwrap();
     let shade = Font::open("shade.ttf").unwrap();
