@@ -30,3 +30,11 @@ fn hello_world() {
     let expected = image::open("tests/hello_world.png").unwrap().to_rgba();
     assert_images_equal(&expected, &image);
 }
+
+#[test]
+fn multi_line_message() {
+    let board = default_board();
+    let image = board.write_phrase("multi\nline\nmessage").render();
+    let expected = image::open("tests/multi_line_message.png").unwrap().to_rgba();
+    assert_images_equal(&expected, &image);
+}
